@@ -7,6 +7,7 @@ import { fetchGasDataHistory } from '../utils/fetchThingSpeakData';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { getAiInsight } from '../utils/getAiInsight';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -21,7 +22,8 @@ export default function GasScreen({ route }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
   const [latest, setLatest] = useState(null);
-  const [aiInsight, setAiInsight] = useState('Loading AI insight...');
+  const [aiInsight, setAiInsight] = useState('AI insight not loaded');
+  const [insightLoading, setInsightLoading] = useState(false);
 
   const FIELD_MAPPING = {
     Methane: 1,
@@ -42,29 +44,8 @@ export default function GasScreen({ route }) {
         setData(valid);
         const latestVal = valid.length > 0 ? valid[valid.length - 1].value : null;
         setLatest(latestVal);
-
-        const valuesOnly = valid.map(d => d.value);
-
-        if (valuesOnly.length > 0) {
-          setTimeout(async () => {
-            try {
-              const insight = await getAiInsight(gasType, valuesOnly);
-              setAiInsight(insight);
-            } catch (aiError) {
-              console.error('Error fetching AI insight:', aiError);
-              if (aiError.response?.status === 429) {
-                setAiInsight('Too many requests to AI. Please wait and try again later.');
-              } else {
-                setAiInsight('AI insight could not be retrieved.');
-              }
-            }
-          }, 1000); // 1 second cooldown
-        } else {
-          setAiInsight('Not enough data for AI insight.');
-        }
       } catch (err) {
         console.error('Error fetching gas data history:', err);
-        setAiInsight('Error loading data.');
       } finally {
         setLoading(false);
       }
@@ -72,6 +53,29 @@ export default function GasScreen({ route }) {
 
     fetchData();
   }, []);
+
+  const handleGetInsight = async () => {
+    const valuesOnly = data.map(d => d.value);
+    if (valuesOnly.length === 0) {
+      setAiInsight('Not enough data for AI insight.');
+      return;
+    }
+
+    setInsightLoading(true);
+    try {
+      const insight = await getAiInsight(gasType, valuesOnly);
+      setAiInsight(insight);
+    } catch (aiError) {
+      console.error('Error fetching AI insight:', aiError);
+      if (aiError.response?.status === 429) {
+        setAiInsight('Too many requests to AI. Please wait and try again later.');
+      } else {
+        setAiInsight('AI insight could not be retrieved.');
+      }
+    } finally {
+      setInsightLoading(false);
+    }
+  };
 
   const labels = data.map((d, i) => (i % 30 === 0 ? new Date(d.time).toLocaleTimeString() : ''));
   const values = data.map((d) => d.value);
@@ -178,7 +182,14 @@ export default function GasScreen({ route }) {
 
           <View style={styles.insightBox}>
             <Text style={styles.insightTitle}>AI Insight</Text>
-            <Text style={styles.insightText}>{aiInsight}</Text>
+            <TouchableOpacity onPress={handleGetInsight} style={styles.insightButton}>
+              <Text style={styles.insightButtonText}>Read Insight</Text>
+            </TouchableOpacity>
+            {insightLoading ? (
+              <ActivityIndicator size="small" color="#004225" style={{ marginTop: 10 }} />
+            ) : (
+              <Text style={styles.insightText}>{aiInsight}</Text>
+            )}
           </View>
         </>
       )}
@@ -247,8 +258,20 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     color: '#333',
   },
+  insightButton: {
+    backgroundColor: '#004225',
+    padding: 10,
+    borderRadius: 6,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  insightButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
   insightText: {
     fontSize: 15,
     color: '#333',
+    marginTop: 12,
   },
 });
