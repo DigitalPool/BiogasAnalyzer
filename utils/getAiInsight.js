@@ -1,11 +1,17 @@
 // utils/getAiInsight.js
 import axios from 'axios';
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const OPENAI_API_KEY = Constants.expoConfig?.extra?.openAiKey;
 
 export const getAiInsight = async (gasType, values, context = '') => {
   if (!OPENAI_API_KEY) throw new Error('Missing OpenAI API key!');
+
+  const feedstock = await AsyncStorage.getItem('feedstock');
+  const temperature = await AsyncStorage.getItem('temperature');
+  const retentionTime = await AsyncStorage.getItem('retentionTime');
+  const status = await AsyncStorage.getItem('status');
 
   const trendDescription = `Here is a trend of ${gasType} gas values in ppm over time: [${values.join(', ')}]`;
 
@@ -18,7 +24,13 @@ export const getAiInsight = async (gasType, values, context = '') => {
     role: 'user',
     content: `
 ${trendDescription}
-This reactor is co-digesting chicken manure, straw, and microcellulose as feedstock.
+
+Reactor details:
+- Feedstock: ${feedstock || 'unknown'}
+- Temperature: ${temperature || 'unknown'}°C
+- Retention Time: ${retentionTime || 'unknown'} days
+- Current Status: ${status || 'not available'}
+
 ${context ? `Additional context: ${context}` : ''}
 
 Please provide a short, practical insight or warning about the reactor's gas behavior and possible biological explanations.
